@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Classroom-UB OS</title>
+    <link rel="icon" href="https://ssl.gstatic.com/classroom/favicon.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+
+    <style>
+        /* CORE */
+        body { 
+            background: #0a0a0a; 
+            background-size: cover;
+            background-position: center;
+            background-attachment: fixed;
+            font-family: 'Segoe UI', sans-serif; 
+            overflow: hidden; 
+            user-select: none; 
+            color: #e5e7eb; 
+            transition: background 0.5s ease;
+        }
+        
+        /* SIDEBAR */
+        .sidebar-scroll { overflow-y: auto; height: 100%; width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 20px; }
+        .sidebar-scroll::-webkit-scrollbar { width: 0px; }
+
+        .sidebar-item { 
+            opacity: 0; transform: scale(0); 
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            cursor: pointer; width: 50px; height: 50px; margin-bottom: 15px;
+            display: flex; align-items: center; justify-content: center;
+            border-radius: 12px; background: rgba(255,255,255,0.05);
+            position: relative; flex-shrink: 0;
+            backdrop-filter: blur(5px);
+        }
+        .sidebar-item:hover, .sidebar-item.active { color: #fff; background: rgba(255,255,255,0.2); transform: scale(1.1); }
+        .sidebar-item.active::after { content: ''; position: absolute; left: -10px; top: 10%; height: 80%; width: 4px; background: #22c55e; border-radius: 0 4px 4px 0; }
+        
+        /* ANIMATIONS */
+        #home-title { animation: slideDown 1.2s cubic-bezier(0.22, 1, 0.36, 1) forwards; transform: translateY(-100px); opacity: 0; }
+        #credits-container { animation: slideUp 1s cubic-bezier(0.22, 1, 0.36, 1) 0.5s forwards; transform: translateY(200px); opacity: 0; }
+        @keyframes slideDown { 100% { transform: translateY(0); opacity: 1; } }
+        @keyframes slideUp { 100% { transform: translateY(0); opacity: 1; } }
+
+        /* CARDS */
+        .credit-card {
+            width: 200px; padding: 20px;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px; backdrop-filter: blur(12px);
+            display: flex; flex-direction: column; align-items: center; text-align: center;
+            transition: 0.3s;
+        }
+        .credit-card:hover { transform: translateY(-10px); background: rgba(255,255,255,0.1); border-color: #22c55e; }
+        .credit-avatar { width: 60px; height: 60px; border-radius: 50%; background: rgba(34, 197, 94, 0.1); margin-bottom: 15px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+
+        .game-card {
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px; padding: 20px; cursor: pointer; transition: 0.2s;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 180px; width: 100%; backdrop-filter: blur(5px);
+        }
+        .game-card:hover { background: rgba(34, 197, 94, 0.2); transform: scale(1.02); border-color: #22c55e; }
+
+        /* MODALS */
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none; transition: 0.3s; }
+        .modal.open { opacity: 1; pointer-events: auto; }
+
+        /* UTILS */
+        .pop-in { animation: popIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards; }
+        @keyframes popIn { 0% { opacity: 0; transform: scale(0) translateX(-50px); } 100% { opacity: 1; transform: scale(1) translateX(0); } }
+    </style>
+</head>
+<body class="h-screen flex">
+
+    <div id="splash" class="fixed inset-0 z-50 bg-[#0a0a0a] flex flex-col items-center justify-center transition-all duration-700">
+        <div class="text-center">
+            <img src="https://ssl.gstatic.com/classroom/favicon.png" class="w-24 h-24 mx-auto mb-6 animate-pulse">
+            <h1 class="text-4xl font-bold text-white tracking-widest mb-2">Classroom-UB</h1>
+            <p id="boot-status" class="text-green-500 font-mono text-sm tracking-tighter">ESTABLISHING CONNECTION...</p>
+        </div>
+    </div>
+
+    <div id="group-modal" class="modal">
+        <div class="bg-[#1a1a1a] p-6 rounded-xl border border-white/10 w-96 shadow-2xl transform scale-95 transition hover:scale-100">
+            <h2 class="text-xl font-bold text-white mb-4">Connect / Join</h2>
+            <div class="mb-4">
+                <label class="block text-xs uppercase opacity-50 mb-2">My ID</label>
+                <div class="flex gap-2">
+                    <input id="my-connect-id" readonly class="w-full bg-black/30 border border-white/10 rounded p-3 text-green-500 font-mono text-sm">
+                    <button onclick="navigator.clipboard.writeText(document.getElementById('my-connect-id').value); alert('ID Copied')" class="px-3 bg-white/10 rounded hover:bg-white/20"><i class="fa-regular fa-copy"></i></button>
+                </div>
+            </div>
+            
+            <div class="w-full h-[1px] bg-white/10 my-4"></div>
+
+            <label class="block text-xs uppercase opacity-50 mb-2">Connect to Friend's ID</label>
+            <input id="new-group-member" class="w-full bg-black/30 border border-white/10 rounded p-3 mb-4 outline-none focus:border-green-500 text-white" placeholder="Paste ID Here...">
+            
+            <div class="flex justify-end gap-2">
+                <button onclick="toggleModal('group-modal')" class="px-4 py-2 rounded text-gray-400 hover:text-white">Cancel</button>
+                <button onclick="connectToUser()" class="px-4 py-2 bg-green-600 text-white rounded font-bold hover:bg-green-500">Connect</button>
+            </div>
+        </div>
+    </div>
+
+    <aside class="w-20 bg-black/40 backdrop-blur-xl border-r border-white/5 z-20 h-full">
+        <div class="sidebar-scroll pt-6">
+            <div id="sidebar-logo" class="mb-6 opacity-0 transition duration-500"><img src="https://ssl.gstatic.com/classroom/favicon.png" class="w-10 h-10"></div>
+            
+            <div id="btn-home" class="sidebar-item active" onclick="nav('home')" title="Home"><i class="fa-solid fa-house text-xl"></i></div>
+            
+            <div id="btn-games" class="sidebar-item" onclick="nav('games')" title="Games"><i class="fa-solid fa-gamepad text-xl"></i></div>
+            <div id="btn-padlet" class="sidebar-item text-yellow-400" onclick="nav('padlet')" title="Board"><i class="fa-solid fa-note-sticky text-xl"></i></div>
+            
+            <div id="btn-helios" class="sidebar-item" onclick="launchGameBlank('https://realplayernation.atelier-krois.de')" title="Browser"><i class="fa-solid fa-globe text-xl"></i></div>
+            
+            <div id="btn-settings" class="sidebar-item" onclick="nav('settings')" title="Settings"><i class="fa-solid fa-gear text-xl"></i></div>
+            
+            <div class="w-8 h-[1px] bg-white/10 my-4"></div>
+            
+            <div id="btn-add" class="sidebar-item text-green-500" onclick="toggleModal('group-modal')" title="Connect"><i class="fa-solid fa-plus text-2xl"></i></div>
+        </div>
+    </aside>
+
+    <main class="flex-1 relative overflow-hidden">
+        <div class="relative z-10 w-full h-full">
+
+            <section id="home" class="absolute inset-0 flex flex-col items-center justify-between py-16 transition-opacity duration-500">
+                <div id="home-title" class="text-center mt-10">
+                    <img src="https://ssl.gstatic.com/classroom/favicon.png" class="w-20 h-20 mx-auto mb-4 drop-shadow-[0_0_20px_rgba(34,197,94,0.4)]">
+                    <h1 class="text-6xl font-black text-white tracking-tighter">Classroom-UB</h1>
+                    <p class="text-green-500 font-mono tracking-[0.4em] mt-2 uppercase text-xs font-bold bg-black/40 px-3 py-1 rounded inline-block">System Online</p>
+                </div>
+                <div id="credits-container" class="w-full mb-10">
+                    <div class="flex justify-center gap-4 px-4 flex-wrap">
+                        <div class="credit-card">
+                            <div class="credit-avatar text-blue-400"><i class="fa-solid fa-terminal"></i></div>
+                            <h3 class="font-bold text-white">Gn-Math</h3>
+                        </div>
+                        <div class="credit-card">
+                            <div class="credit-avatar text-green-400"><i class="fa-solid fa-microchip"></i></div>
+                            <h3 class="font-bold text-white">Jackson</h3>
+                        </div>
+                        <div class="credit-card" style="border-color: rgba(34, 197, 94, 0.4);">
+                            <div class="credit-avatar text-yellow-500"><i class="fa-solid fa-user-gear"></i></div>
+                            <h3 class="font-bold text-white">Lol/Adrian</h3>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="games" class="absolute inset-0 hidden p-10 overflow-y-auto">
+                <h2 class="text-3xl font-bold text-white mb-8">Game Launcher</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    
+                    <div class="game-card" onclick="launchGameBlank('https://d9by6xfdi9c2r.cloudfront.net/web/')">
+                        <i class="fa-solid fa-cloud text-4xl text-cyan-400 mb-4"></i>
+                        <h3 class="text-xl font-bold">Cloudfront Web</h3>
+                        <p class="text-xs opacity-60 mt-2">Proxy Node</p>
+                    </div>
+
+                    <div class="game-card" onclick="launchGameBlank('https://etld.securly.com.surf.surfnet.ca/top.v1.html')">
+                        <i class="fa-solid fa-water text-4xl text-blue-500 mb-4"></i>
+                        <h3 class="text-xl font-bold">Surfnet</h3>
+                        <p class="text-xs opacity-60 mt-2">Securly Bypass</p>
+                    </div>
+
+                    <div class="game-card" onclick="launchGameBlank('https://housing.bentnailfarms.com/api/')">
+                        <i class="fa-solid fa-tractor text-4xl text-green-700 mb-4"></i>
+                        <h3 class="text-xl font-bold">Bentnail Farms</h3>
+                        <p class="text-xs opacity-60 mt-2">API Endpoint</p>
+                    </div>
+
+                    <div class="game-card" onclick="launchGameBlank('https://mathlovers6.duckdns.org/')">
+                        <i class="fa-solid fa-cube text-4xl text-blue-500 mb-4"></i>
+                        <h3 class="text-xl font-bold">Euphoria</h3>
+                        <p class="text-xs opacity-60 mt-2">Project B2 Original</p>
+                    </div>
+
+                    <div class="game-card" onclick="launchGameBlank('https://hacker-114.github.io/orsons-gn/')">
+                        <i class="fa-solid fa-file-code text-4xl text-red-500 mb-4"></i>
+                        <h3 class="text-xl font-bold">gn-math</h3>
+                        <p class="text-xs opacity-60 mt-2">Auto-Updater</p>
+                    </div>
+
+                </div>
+            </section>
+
+            <section id="padlet" class="absolute inset-0 hidden"><iframe src="https://padlet.com/mmlolmm/us-students-are-smart-nfl6gbpowkd6wk0o" class="w-full h-full border-none"></iframe></section>
+
+            <section id="settings" class="absolute inset-0 hidden p-12">
+                <h2 class="text-3xl font-bold text-white mb-8">Settings</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    
+                    <div class="bg-black/40 backdrop-blur-md p-6 rounded-2xl border border-white/10">
+                        <h3 class="text-xl font-bold mb-4 text-green-400">Profile</h3>
+                        <label class="text-[10px] font-bold opacity-40 uppercase mb-2 block">Username</label>
+                        <input id="username-input" class="w-full bg-black/40 border border-white/10 p-3 rounded-lg outline-none focus:border-green-500 text-sm text-white mb-4" onchange="saveProfile()">
+                        
+                        <label class="text-[10px] font-bold opacity-40 uppercase mb-2 block">Your ID</label>
+                        <div class="flex gap-2">
+                            <input id="my-id" readonly class="flex-1 bg-black/40 border border-white/10 p-3 rounded-lg font-mono text-green-500 text-sm">
+                            <button onclick="copyId()" class="bg-white/10 hover:bg-white/20 px-4 rounded-lg"><i class="fa-regular fa-copy"></i></button>
+                        </div>
+                    </div>
+
+                    <div class="bg-black/40 backdrop-blur-md p-6 rounded-2xl border border-white/10">
+                        <h3 class="text-xl font-bold mb-4 text-blue-400">Wallpaper</h3>
+                        <label class="text-[10px] font-bold opacity-40 uppercase mb-2 block">Color</label>
+                        <input type="color" onchange="setWallpaperColor(this.value)" class="w-full h-10 rounded cursor-pointer bg-transparent border border-white/20 mb-4">
+                        <label class="text-[10px] font-bold opacity-40 uppercase mb-2 block">Image URL</label>
+                        <div class="flex gap-2">
+                            <input id="bg-url" class="flex-1 bg-black/40 border border-white/10 p-2 rounded text-sm text-white" placeholder="https://...">
+                            <button onclick="setWallpaperImage()" class="bg-blue-600 px-3 rounded hover:bg-blue-500 font-bold text-xs">Apply</button>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <script>
+        // --- SYSTEM CORE ---
+        let currentGroupId = null;
+        let peer;
+        let connections = {}; 
+        
+        let myName = localStorage.getItem('chatUsername') || "Student-" + Math.floor(Math.random()*999);
+
+        window.onload = () => {
+            loadWallpaper();
+            document.getElementById('username-input').value = myName;
+            
+            setTimeout(() => {
+                document.getElementById('splash').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('splash').remove();
+                    document.getElementById('home').style.opacity = '1';
+                    animateSidebar();
+                    initNetwork(); 
+                }, 700);
+            }, 1000);
+        };
+
+        // --- NETWORKING ---
+        function initNetwork() {
+            let storedId = localStorage.getItem('myClassroomID');
+            if(!storedId) {
+                storedId = "User-" + Math.floor(Math.random()*1000000);
+                localStorage.setItem('myClassroomID', storedId);
+            }
+
+            peer = new Peer(storedId);
+
+            peer.on('open', (id) => {
+                if(document.getElementById('my-id')) document.getElementById('my-id').value = id;
+                if(document.getElementById('my-connect-id')) document.getElementById('my-connect-id').value = id;
+            });
+
+            peer.on('connection', (conn) => {
+                setupConn(conn);
+            });
+        }
+
+        function setupConn(conn) {
+            connections[conn.peer] = conn;
+
+            conn.on('close', () => {
+                delete connections[conn.peer];
+            });
+        }
+
+        function connectToUser() {
+            const targetId = document.getElementById('new-group-member').value;
+            if(!targetId) return;
+            const conn = peer.connect(targetId);
+            setupConn(conn);
+            toggleModal('group-modal');
+            alert("Connection request sent to " + targetId);
+        }
+
+        // --- NAVIGATION & UI ---
+        function nav(id) {
+            ['home', 'games', 'padlet', 'settings'].forEach(v => document.getElementById(v).classList.add('hidden'));
+            document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+            document.getElementById(id).classList.remove('hidden');
+            if(document.getElementById('btn-'+id)) document.getElementById('btn-'+id).classList.add('active');
+        }
+
+        function toggleModal(id) { document.getElementById(id).classList.toggle('open'); }
+
+        // --- CLOAKING ---
+        function launchGameBlank(url) {
+            const win = window.open('about:blank', '_blank');
+            if (win) {
+                win.document.body.style.margin = '0';
+                win.document.body.style.height = '100vh';
+                const iframe = win.document.createElement('iframe');
+                iframe.style.border = 'none'; iframe.style.width = '100%'; iframe.style.height = '100%';
+                iframe.style.margin = '0'; iframe.src = url;
+                win.document.body.appendChild(iframe);
+            } else {
+                alert("Pop-up blocked! Please allow pop-ups for this site.");
+            }
+        }
+
+        // --- UTILS ---
+        function saveProfile() { myName = document.getElementById('username-input').value; localStorage.setItem('chatUsername', myName); }
+        function copyId() { navigator.clipboard.writeText(document.getElementById('my-id').value); alert("ID Copied"); }
+        
+        function setWallpaperColor(hex) { document.body.style.backgroundImage = 'none'; document.body.style.backgroundColor = hex; localStorage.setItem('ub-bg-type','color'); localStorage.setItem('ub-bg-val',hex); }
+        function setWallpaperImage() { const url = document.getElementById('bg-url').value; document.body.style.backgroundImage = `url('${url}')`; localStorage.setItem('ub-bg-type','img'); localStorage.setItem('ub-bg-val',url); }
+        function loadWallpaper() {
+            const t = localStorage.getItem('ub-bg-type'), v = localStorage.getItem('ub-bg-val');
+            if(t==='color') document.body.style.backgroundColor = v;
+            else if(t==='img') document.body.style.backgroundImage = `url('${v}')`;
+        }
+
+        function animateSidebar() {
+            ['sidebar-logo', 'btn-home', 'btn-games', 'btn-padlet', 'btn-helios', 'btn-settings', 'btn-add'].forEach((id, i) => {
+                setTimeout(() => {
+                    const el = document.getElementById(id);
+                    if(el) { if(id === 'sidebar-logo') el.style.opacity = '1'; else el.classList.add('pop-in'); }
+                }, i * 100);
+            });
+        }
+    </script>
+</body>
+</html>
